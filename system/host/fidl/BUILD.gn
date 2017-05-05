@@ -5,6 +5,8 @@
 config("fidl_config") {
   include_dirs = [ "." ]
   visibility = [ ":*" ]
+  cflags = [ "-fsanitize=address" ]
+  ldflags = [ "-fsanitize=address" ]
 }
 
 source_set("compiler") {
@@ -15,6 +17,8 @@ source_set("compiler") {
     "identifier_table.h",
     "lexer.cpp",
     "lexer.h",
+    "module.cpp",
+    "module.h",
     "parser.cpp",
     "parser.h",
     "source_manager.cpp",
@@ -22,6 +26,8 @@ source_set("compiler") {
     "string_view.h",
     "token_definitions.h",
     "token.h",
+    "type_shape.cpp",
+    "type_shape.h",
   ]
 }
 

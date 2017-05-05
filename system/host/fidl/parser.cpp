@@ -346,41 +346,41 @@ std::unique_ptr<HandleType> Parser::ParseHandleType() {
 }
 
 std::unique_ptr<PrimitiveType> Parser::ParsePrimitiveType() {
-    PrimitiveType::TypeKind type_kind;
+    PrimitiveType::Subtype subtype;
 
     switch (Peek()) {
     case Token::Kind::Bool:
-        type_kind = PrimitiveType::TypeKind::Bool;
+        subtype = PrimitiveType::Subtype::Bool;
         break;
     case Token::Kind::Int8:
-        type_kind = PrimitiveType::TypeKind::Int8;
+        subtype = PrimitiveType::Subtype::Int8;
         break;
     case Token::Kind::Int16:
-        type_kind = PrimitiveType::TypeKind::Int16;
+        subtype = PrimitiveType::Subtype::Int16;
         break;
     case Token::Kind::Int32:
-        type_kind = PrimitiveType::TypeKind::Int32;
+        subtype = PrimitiveType::Subtype::Int32;
         break;
     case Token::Kind::Int64:
-        type_kind = PrimitiveType::TypeKind::Int64;
+        subtype = PrimitiveType::Subtype::Int64;
         break;
     case Token::Kind::Uint8:
-        type_kind = PrimitiveType::TypeKind::Uint8;
+        subtype = PrimitiveType::Subtype::Uint8;
         break;
     case Token::Kind::Uint16:
-        type_kind = PrimitiveType::TypeKind::Uint16;
+        subtype = PrimitiveType::Subtype::Uint16;
         break;
     case Token::Kind::Uint32:
-        type_kind = PrimitiveType::TypeKind::Uint32;
+        subtype = PrimitiveType::Subtype::Uint32;
         break;
     case Token::Kind::Uint64:
-        type_kind = PrimitiveType::TypeKind::Uint64;
+        subtype = PrimitiveType::Subtype::Uint64;
         break;
     case Token::Kind::Float32:
-        type_kind = PrimitiveType::TypeKind::Float32;
+        subtype = PrimitiveType::Subtype::Float32;
         break;
     case Token::Kind::Float64:
-        type_kind = PrimitiveType::TypeKind::Float64;
+        subtype = PrimitiveType::Subtype::Float64;
         break;
     default:
         return Fail();
@@ -389,7 +389,7 @@ std::unique_ptr<PrimitiveType> Parser::ParsePrimitiveType() {
     ConsumeToken(Peek());
     if (!Ok())
         return Fail();
-    return std::make_unique<PrimitiveType>(type_kind);
+    return std::make_unique<PrimitiveType>(subtype);
 }
 
 std::unique_ptr<RequestType> Parser::ParseRequestType() {

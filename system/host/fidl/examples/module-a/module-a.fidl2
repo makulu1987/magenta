@@ -1,0 +1,7 @@
+module a
+
+struct Stuff {
+    m0.foo Foo;
+    m1.Echo Echo0;
+    a.m1.Echo Echo1;
+}

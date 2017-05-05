@@ -11,8 +11,7 @@
 #include <vector>
 
 #include "identifier_table.h"
-#include "lexer.h"
-#include "parser.h"
+#include "module.h"
 #include "source_manager.h"
 
 namespace fidl {
@@ -20,30 +19,28 @@ namespace {
 
 enum struct Behavior {
     None,
+    ModuleDump,
 };
 
 bool TestParser(int file_count, char** file_names, Behavior behavior) {
-    SourceManager source_manager;
-    IdentifierTable identifier_table;
+    Module module;
 
     for (int idx = 0; idx < file_count; ++idx) {
         StringView source;
-        if (!source_manager.CreateSource(file_names[idx], &source)) {
+        if (!module.CreateSource(file_names[idx], &source)) {
             fprintf(stderr, "Couldn't read in source data from %s\n", file_names[idx]);
             return false;
         }
-
-        Lexer lexer(source, &identifier_table);
-        Parser parser(&lexer);
-
-        auto raw_ast = parser.Parse();
-        if (!parser.Ok()) {
+        if (!module.Parse(source)) {
             fprintf(stderr, "Parse failed!\n");
             return false;
         }
     }
 
-    return true;
+    if (behavior != Behavior::ModuleDump)
+        return true;
+
+    return module.Dump();
 }
 
 } // namespace
@@ -61,6 +58,8 @@ int main(int argc, char* argv[]) {
     fidl::Behavior behavior;
     if (!strncmp(argv[0], "none", 4))
         behavior = fidl::Behavior::None;
+    else if (!strncmp(argv[0], "module-dump", 11))
+        behavior = fidl::Behavior::ModuleDump;
     else
         return 1;
     --argc;

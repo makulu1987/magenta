@@ -32,55 +32,95 @@ struct CompoundIdentifier {
 };
 
 struct Literal {
+    enum struct Kind {
+        String,
+        Numeric,
+        True,
+        False,
+        Default,
+    };
+
+    Literal(Kind kind) : kind(kind) {}
+
+    const Kind kind;
 };
 
 struct StringLiteral : public Literal {
     StringLiteral(Token literal)
-        : literal(literal) {}
+        : Literal(Kind::String),
+          literal(literal) {}
 
     Token literal;
 };
 
 struct NumericLiteral : public Literal {
     NumericLiteral(Token literal)
-        : literal(literal) {}
+        : Literal(Kind::Numeric),
+          literal(literal) {}
 
     Token literal;
 };
 
 struct TrueLiteral : public Literal {
+    TrueLiteral() : Literal(Kind::True) {}
 };
 
 struct FalseLiteral : public Literal {
+    FalseLiteral() : Literal(Kind::False) {}
 };
 
 struct DefaultLiteral : public Literal {
+    DefaultLiteral() : Literal(Kind::Default) {}
 };
 
 struct Constant {
+    enum struct Kind {
+        Identifier,
+        Literal,
+    };
+
+    Constant(Kind kind) : kind(kind) {}
+
+    const Kind kind;
 };
 
 struct IdentifierConstant : Constant {
     IdentifierConstant(std::unique_ptr<CompoundIdentifier> identifier)
-        : identifier(std::move(identifier)) {}
+        : Constant(Kind::Identifier),
+          identifier(std::move(identifier)) {}
 
     std::unique_ptr<CompoundIdentifier> identifier;
 };
 
 struct LiteralConstant : Constant {
     LiteralConstant(std::unique_ptr<Literal> literal)
-        : literal(std::move(literal)) {}
+        : Constant(Kind::Literal),
+          literal(std::move(literal)) {}
 
     std::unique_ptr<Literal> literal;
 };
 
 struct Type {
+    enum struct Kind {
+        Array,
+        Vector,
+        String,
+        Handle,
+        Request,
+        Primitive,
+        Identifier,
+    };
+
+    Type(Kind kind) : kind(kind) {}
+
+    const Kind kind;
 };
 
 struct ArrayType : public Type {
     ArrayType(std::unique_ptr<Type> element_type,
               std::unique_ptr<Constant> element_count)
-        : element_type(std::move(element_type)),
+        : Type(Kind::Array),
+          element_type(std::move(element_type)),
           element_count(std::move(element_count)) {}
 
     std::unique_ptr<Type> element_type;
@@ -91,7 +131,8 @@ struct VectorType : public Type {
     VectorType(std::unique_ptr<Type> element_type,
                std::unique_ptr<Constant> maybe_element_count,
                Nullability nullability)
-        : element_type(std::move(element_type)),
+        : Type(Kind::Vector),
+          element_type(std::move(element_type)),
           maybe_element_count(std::move(maybe_element_count)),
           nullability(nullability) {}
 
@@ -103,7 +144,8 @@ struct VectorType : public Type {
 struct StringType : public Type {
     StringType(std::unique_ptr<Constant> maybe_element_count,
                Nullability nullability)
-        : maybe_element_count(std::move(maybe_element_count)),
+        : Type(Kind::String),
+          maybe_element_count(std::move(maybe_element_count)),
           nullability(nullability) {}
 
     std::unique_ptr<Constant> maybe_element_count;
@@ -135,7 +177,8 @@ struct HandleType : public Type {
     };
 
     HandleType(Subtype subtype, Nullability nullability)
-        : subtype(subtype),
+        : Type(Kind::Handle),
+          subtype(subtype),
           nullability(nullability) {}
 
     Subtype subtype;
@@ -145,25 +188,16 @@ struct HandleType : public Type {
 struct RequestType : public Type {
     RequestType(std::unique_ptr<CompoundIdentifier> subtype,
                 Nullability nullability)
-        : subtype(std::move(subtype)),
+        : Type(Kind::Request),
+          subtype(std::move(subtype)),
           nullability(nullability) {}
 
     std::unique_ptr<CompoundIdentifier> subtype;
     Nullability nullability;
 };
 
-struct IdentifierType : public Type {
-    IdentifierType(std::unique_ptr<CompoundIdentifier> identifier,
-                   Nullability nullability)
-        : identifier(std::move(identifier)),
-          nullability(nullability) {}
-
-    std::unique_ptr<CompoundIdentifier> identifier;
-    Nullability nullability;
-};
-
 struct PrimitiveType : public Type {
-    enum struct TypeKind {
+    enum struct Subtype {
         Bool,
         Int8,
         Int16,
@@ -177,10 +211,22 @@ struct PrimitiveType : public Type {
         Float64,
     };
 
-    PrimitiveType(TypeKind type_kind)
-        : type_kind(type_kind) {}
+    PrimitiveType(Subtype subtype)
+        : Type(Kind::Primitive),
+          subtype(subtype) {}
 
-    TypeKind type_kind;
+    Subtype subtype;
+};
+
+struct IdentifierType : public Type {
+    IdentifierType(std::unique_ptr<CompoundIdentifier> identifier,
+                   Nullability nullability)
+        : Type(Kind::Identifier),
+          identifier(std::move(identifier)),
+          nullability(nullability) {}
+
+    std::unique_ptr<CompoundIdentifier> identifier;
+    Nullability nullability;
 };
 
 struct Using {

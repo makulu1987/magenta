@@ -1,0 +1,8 @@
+module a.m0
+
+struct foo {
+    uint8 u8_0;
+    uint64 u64_0;
+    uint8 u8_1;
+    m1.EchoMe echo;
+}

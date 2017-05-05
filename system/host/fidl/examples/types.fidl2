@@ -1,8 +1,16 @@
 module types
 
 struct this_is_a_struct {}
-union this_is_a_union {}
-interface this_is_an_interface {}
+union this_is_a_union {
+    int64 int;
+    array<bool>:127 bools;
+}
+interface this_is_an_interface {
+    0: m0();
+    1: m1(string s);
+    2: m2() -> (string s);
+    3: m3(int64 x) -> (string s);
+}
 
 struct primitive_types {
     bool b;
@@ -237,15 +245,33 @@ struct strings {
     string:size? nullable_size_1_s;
 }
 
-enum default_enum {}
-enum i8_enum : int8 {}
-enum i16_enum : int16 {}
-enum i32_enum : int32 {}
-enum i64_enum : int64 {}
-enum u8_enum : uint8 {}
-enum u16_enum : uint16 {}
-enum u32_enum : uint32 {}
-enum u64_enum : uint64 {}
+enum default_enum {
+    kDefault = 0;
+}
+enum i8_enum : int8 {
+    kI8 = 1;
+}
+enum i16_enum : int16 {
+    kI16 = 2;
+}
+enum i32_enum : int32 {
+    kI32 = 3;
+}
+enum i64_enum : int64 {
+    kI64 = 4;
+}
+enum u8_enum : uint8 {
+    kU8 = 5;
+}
+enum u16_enum : uint16 {
+    kU16 = 6;
+}
+enum u32_enum : uint32 {
+    kU32 = 7;
+}
+enum u64_enum : uint64 {
+    kU64 = 8;
+}
 
 struct structs {
     this_is_a_struct s;
