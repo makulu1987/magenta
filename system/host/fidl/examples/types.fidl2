@@ -292,3 +292,18 @@ struct requests {
     request<this_is_an_interface> r;
     request<this_is_an_interface>? nullable_r;
 }
+
+struct packing {
+    int16 i16_0;
+    int32 i32_0;
+    int16 i16_1;
+}
+
+struct wat {
+    int64 x;
+}
+
+struct wats {
+    wat nonnullable_wat;
+    wat? nullable_wat;
+}

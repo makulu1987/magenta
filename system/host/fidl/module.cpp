@@ -38,13 +38,85 @@ size_t AlignTo(size_t size, size_t alignment) {
     return size;
 }
 
+size_t Alignment(size_t size) {
+    if (size % 8u == 0u)
+        return 8u;
+    if (size % 4u == 0u)
+        return 4u;
+    if (size % 2u == 0u)
+        return 2u;
+    return 1u;
+}
+
+std::vector<TypeShape> FirstFitSort(std::vector<TypeShape> typeshapes) {
+    auto begin = typeshapes.begin();
+    auto end = typeshapes.end();
+
+    auto align_8 = [](const TypeShape& ts){ return ts.Alignment() == 8; };
+    auto align_4 = [](const TypeShape& ts){ return ts.Alignment() == 4; };
+    auto align_2 = [](const TypeShape& ts){ return ts.Alignment() == 2; };
+    auto align_1 = [](const TypeShape& ts){ return ts.Alignment() == 1; };
+
+    auto current_8 = std::find_if(begin, end, align_8);
+    auto current_4 = std::find_if(begin, end, align_4);
+    auto current_2 = std::find_if(begin, end, align_2);
+    auto current_1 = std::find_if(begin, end, align_1);
+
+    size_t current_size = 0u;
+
+    auto next_fit = [&]() -> TypeShape {
+        auto current_alignment = Alignment(current_size);
+        std::vector<TypeShape>::iterator match;
+        switch (current_alignment) {
+        case 8u:
+            match = std::min({current_1, current_2, current_4, current_8});
+            break;
+        case 4u:
+            match = std::min({current_1, current_2, current_4});
+            break;
+        case 2u:
+            match = std::min({current_1, current_2});
+            break;
+        case 1u:
+            match = std::min({current_1});
+            break;
+        }
+        if (match == end) {
+            return TypeShape(current_alignment, current_alignment);
+        }
+        switch (match->Alignment()) {
+        case 8u:
+            current_8 = std::find_if(current_8 + 1, end, align_8);
+            break;
+        case 4u:
+            current_4 = std::find_if(current_4 + 1, end, align_4);
+            break;
+        case 2u:
+            current_2 = std::find_if(current_2 + 1, end, align_2);
+            break;
+        case 1u:
+            current_1 = std::find_if(current_1 + 1, end, align_1);
+            break;
+        }
+        return std::move(*match);
+    };
+
+    std::vector<TypeShape> fitted_typeshapes;
+
+    while(std::min({current_1, current_2, current_4, current_8}) != end) {
+        fitted_typeshapes.emplace_back(next_fit());
+    }
+
+    return fitted_typeshapes;
+}
+
 TypeShape StructTypeShape(std::vector<TypeShape> member_typeshapes) {
-    // TODO(kulakowski) Stable sort struct members by size/alignment.
+    auto fitted_typeshapes = FirstFitSort(std::move(member_typeshapes));
 
     size_t size = 0u;
     size_t alignment = 1u;
 
-    for (const auto& type_shape : member_typeshapes) {
+    for (const auto& type_shape : fitted_typeshapes) {
         alignment = std::max(alignment, type_shape.Alignment());
         size = AlignTo(size, type_shape.Alignment());
         size += type_shape.Size();
@@ -80,6 +152,12 @@ TypeShape StringTypeShape(uint64_t count) {
     auto header_shape = StructTypeShape(std::vector<TypeShape>({kUint64TypeShape, kPointerTypeShape}));
     header_shape.AddAllocation(array_allocation);
     return header_shape;
+}
+
+TypeShape NullableTypeShape(TypeShape shape) {
+    auto pointer = kPointerTypeShape;
+    pointer.AddAllocation(Allocation(shape));
+    return pointer;
 }
 
 template <typename IntType>

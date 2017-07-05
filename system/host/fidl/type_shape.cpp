@@ -4,6 +4,8 @@
 
 #include "type_shape.h"
 
+#include <assert.h>
+
 Allocation::Allocation(TypeShape typeshape, size_t bound) :
     typeshape_(typeshape), bound_(bound) { }
 
@@ -21,8 +23,8 @@ TypeShape::TypeShape(size_t size, size_t alignment, std::vector<Allocation> allo
     size_(size),
     alignment_(alignment),
     allocations_(std::move(allocations)) {
-    // Must be a power of 2.
-    assert(((alignment_ & (alignment_ - 1)) == 0) && alignment_ != 0);
+    // Must be a small power of 2.
+    assert(alignment_ == 1 || alignment_ == 2 || alignment_ == 4 || alignment_ == 8);
 }
 
 TypeShape::TypeShape(size_t size, size_t alignment) : TypeShape(size, alignment, std::vector<Allocation>()) {}
