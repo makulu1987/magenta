@@ -15,6 +15,7 @@
 #include <ddk/protocol/display.h>
 #include <ddk/protocol/platform-device.h>
 
+#include <magenta/process.h>
 #include <magenta/syscalls.h>
 #include <magenta/assert.h>
 
@@ -305,13 +306,14 @@ static mx_status_t mailbox_bind(void* ctx, mx_device_t* parent, void** cookie) {
     }
 
     // Carve out some address space for the device -- it's memory mapped.
-    mx_status_t status = mx_mmap_device_memory(
-        get_root_resource(),
-        MAILBOX_PAGE_ADDRESS, MAILBOX_REGS_LENGTH,
-        MX_CACHE_POLICY_UNCACHED_DEVICE, &page_base);
-
-    if (status != MX_OK)
+    size_t mmio_size;
+    mx_handle_t mmio_handle;
+    mx_status_t status = pdp.ops->map_mmio(pdp.ctx, 0, MX_CACHE_POLICY_UNCACHED_DEVICE, (void **)&page_base, &mmio_size,
+                         &mmio_handle);
+    if (status != MX_OK) {
+        printf("mailbox_bind map_mmio failed %d\n", status);
         return status;
+    }  
 
     // The device is actually mapped at some offset into the page.
     mailbox_regs = (uint32_t*)(page_base + PAGE_REG_DELTA);
@@ -326,6 +328,8 @@ static mx_status_t mailbox_bind(void* ctx, mx_device_t* parent, void** cookie) {
 
     status = device_add(parent, &vc_rpc_args, NULL);
     if (status != MX_OK) {
+        mx_vmar_unmap(mx_vmar_root_self(), page_base, mmio_size);
+        mx_handle_close(mmio_handle);
         return status;
     }
 
