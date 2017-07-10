@@ -16,6 +16,8 @@
 #include <inttypes.h>
 #include <threads.h>
 
+#include "internal.h"
+
 #define TRACE 0
 
 #if TRACE
@@ -35,6 +37,7 @@
 #define IOTXN_PFLAG_MMAP       (1 << 3)   // we performed mmap() on this vmo
 #define IOTXN_PFLAG_FREE       (1 << 4)   // this txn has been released
 #define IOTXN_PFLAG_QUEUED     (1 << 5)   // transaction has been queued and not yet released
+#define IOTXN_PFLAG_BTI        (1 << 6)   // this data was pinned via the BTI interface
 
 #define IOTXN_STATE_MASK       (IOTXN_PFLAG_FREE | IOTXN_PFLAG_QUEUED)
 
@@ -44,6 +47,12 @@ static mtx_t free_list_mutex = MTX_INIT;
 static size_t free_list_length = 0;
 static size_t free_list_monitor_warned = 0;
 #endif
+
+mx_handle_t io_default_bti = MX_HANDLE_INVALID;
+void iotxn_set_default_bti(mx_handle_t bti) {
+    // TODO: locking
+    io_default_bti = bti;
+}
 
 // This assert will fail if we attempt to access the buffer of a cloned txn after it has been completed
 #define ASSERT_BUFFER_VALID(priv) MX_DEBUG_ASSERT(!(priv->flags & IOTXN_FLAG_DEAD))
@@ -142,6 +151,10 @@ static void iotxn_release_free_list(iotxn_t* txn) {
 
 // free the iotxn
 static void iotxn_release_free(iotxn_t* txn) {
+    if (txn->pflags & IOTXN_PFLAG_BTI) {
+        mx_status_t status = mx_bti_unpin(io_default_bti, txn->phys, txn->phys_count);
+        MX_DEBUG_ASSERT(status == MX_OK);
+    }
     if (do_free_phys(txn->pflags)) {
         if (txn->phys != NULL) {
             free(txn->phys);
@@ -214,17 +227,30 @@ static mx_status_t iotxn_physmap_contiguous(iotxn_t* txn) {
         return MX_ERR_NO_MEMORY;
     }
 
-    // for contiguous buffers, commit the whole range but just map the first
-    // page
+    // for contiguous buffers, commit the whole range
     uint64_t page_offset = ROUNDDOWN(txn->vmo_offset, PAGE_SIZE);
     mx_status_t status = mx_vmo_op_range(txn->vmo_handle, MX_VMO_OP_COMMIT, page_offset, txn->vmo_length, NULL, 0);
     if (status != MX_OK) {
         goto fail;
     }
 
-    status = mx_vmo_op_range(txn->vmo_handle, MX_VMO_OP_LOOKUP, page_offset, PAGE_SIZE, txn->phys, sizeof(mx_paddr_t));
-    if (status != MX_OK) {
-        goto fail;
+    if (io_default_bti == MX_HANDLE_INVALID) {
+        status = mx_vmo_op_range(txn->vmo_handle, MX_VMO_OP_LOOKUP, page_offset, PAGE_SIZE, txn->phys, sizeof(mx_paddr_t));
+        if (status != MX_OK) {
+            xprintf("iotxn_physmap_contiguous: error %d in lookup\n", status);
+            goto fail;
+        }
+    } else {
+        uint32_t actual_extents;
+        status = mx_bti_pin(io_default_bti, txn->vmo_handle, page_offset, txn->vmo_length,
+                            MX_VM_FLAG_PERM_READ | MX_VM_FLAG_PERM_WRITE,
+                            txn->phys, 1, &actual_extents);
+        if (status != MX_OK) {
+            xprintf("iotxn_physmap_contiguous: error %d in bti_pin\n", status);
+            goto fail;
+        }
+        MX_DEBUG_ASSERT(actual_extents == 1);
+        txn->pflags |= IOTXN_PFLAG_BTI;
     }
 
     txn->pflags |= IOTXN_PFLAG_PHYSMAP;
@@ -254,21 +280,36 @@ static mx_status_t iotxn_physmap_paged(iotxn_t* txn) {
     mx_status_t status = mx_vmo_op_range(txn->vmo_handle, MX_VMO_OP_COMMIT, txn->vmo_offset, txn->vmo_length, NULL, 0);
     if (status != MX_OK) {
         xprintf("iotxn_physmap_paged: error %d in commit\n", status);
-        free(paddrs);
-        return status;
+        goto fail;
     }
 
-    status = mx_vmo_op_range(txn->vmo_handle, MX_VMO_OP_LOOKUP, page_offset, page_length, paddrs, sizeof(mx_paddr_t) * pages);
-    if (status != MX_OK) {
-        xprintf("iotxn_physmap_paged: error %d in lookup\n", status);
-        free(paddrs);
-        return status;
+    if (io_default_bti == MX_HANDLE_INVALID) {
+        status = mx_vmo_op_range(txn->vmo_handle, MX_VMO_OP_LOOKUP, page_offset, page_length, paddrs, sizeof(mx_paddr_t) * pages);
+        if (status != MX_OK) {
+            xprintf("iotxn_physmap_paged: error %d in lookup\n", status);
+            goto fail;
+        }
+        txn->phys_count = pages;
+    } else {
+        uint32_t actual_extents;
+        status = mx_bti_pin(io_default_bti, txn->vmo_handle, page_offset, ROUNDUP(page_length, PAGE_SIZE),
+                            MX_VM_FLAG_PERM_READ | MX_VM_FLAG_PERM_WRITE,
+                            paddrs, pages, &actual_extents);
+        if (status != MX_OK) {
+            xprintf("iotxn_physmap_paged: error %d in bti_pin\n", status);
+            goto fail;
+        }
+        txn->phys_count = actual_extents;
+        txn->pflags |= IOTXN_PFLAG_BTI;
     }
 
     txn->pflags |= IOTXN_PFLAG_PHYSMAP;
     txn->phys = paddrs;
-    txn->phys_count = pages;
     return MX_OK;
+fail:
+    free(txn->phys);
+    txn->phys = NULL;
+    return status;
 }
 
 mx_status_t iotxn_physmap(iotxn_t* txn) {
