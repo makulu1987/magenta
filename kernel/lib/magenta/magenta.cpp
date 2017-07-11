@@ -346,7 +346,62 @@ mx_status_t magenta_sleep(mx_time_t deadline) {
 mx_status_t validate_resource_handle(mx_handle_t handle) {
     auto up = ProcessDispatcher::GetCurrent();
     mxtl::RefPtr<ResourceDispatcher> resource;
-    return up->GetDispatcher(handle, &resource);
+    auto status = up->GetDispatcher(handle, &resource);
+    if (status != MX_OK) {
+        return status;
+    }
+    if (resource->get_kind() == MX_RSRC_KIND_ROOT) {
+        return MX_OK;
+    }
+    return MX_ERR_ACCESS_DENIED;
+}
+
+mx_status_t validate_resource_mmio(mx_handle_t handle, uintptr_t base, size_t length) {
+    auto up = ProcessDispatcher::GetCurrent();
+    mxtl::RefPtr<ResourceDispatcher> resource;
+    auto status = up->GetDispatcher(handle, &resource);
+    if (status != MX_OK) {
+        return status;
+    }
+    switch (resource->get_kind()) {
+    case MX_RSRC_KIND_ROOT:
+        return MX_OK;
+    case MX_RSRC_KIND_MMIO: {
+        uint64_t low, high;
+        resource->get_range(&low, &high);
+        if (base >= low && base + length - 1 <= high) {
+            return MX_OK;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return MX_ERR_ACCESS_DENIED;
+}
+
+mx_status_t validate_resource_irq(mx_handle_t handle, uint32_t irq) {
+    auto up = ProcessDispatcher::GetCurrent();
+    mxtl::RefPtr<ResourceDispatcher> resource;
+    auto status = up->GetDispatcher(handle, &resource);
+    if (status != MX_OK) {
+        return status;
+    }
+    switch (resource->get_kind()) {
+    case MX_RSRC_KIND_ROOT:
+        return MX_OK;
+    case MX_RSRC_KIND_IRQ: {
+        uint64_t low, high;
+        resource->get_range(&low, &high);
+        if (irq >= low && irq <= high) {
+            return MX_OK;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return MX_ERR_ACCESS_DENIED;
 }
 
 mx_status_t get_process(ProcessDispatcher* up,

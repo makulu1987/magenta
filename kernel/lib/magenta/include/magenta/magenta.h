@@ -49,10 +49,16 @@ bool magenta_rights_check(const Handle* handle, mx_rights_t desired);
 
 mx_status_t magenta_sleep(mx_time_t deadline);
 
-// Determines if this handle is to a Resource object.
+// Determines if this handle is to the root resource object.
 // Used to provide access to privileged syscalls.
 // Later, Resource objects will be finer-grained.
 mx_status_t validate_resource_handle(mx_handle_t handle);
+
+// Validates mapping an MMIO range based on a resource handle
+mx_status_t validate_resource_mmio(mx_handle_t handle, uintptr_t base, size_t length);
+
+// Validates creation of an interrupt object based on a resource handle
+mx_status_t validate_resource_irq(mx_handle_t handle, uint32_t irq);
 
 // Convenience function to get go from process handle to process.
 mx_status_t get_process(ProcessDispatcher* up,
