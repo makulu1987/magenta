@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <magenta/process.h>
+#include <magenta/syscalls/iommu.h>
 
 #include "kpci-private.h"
 
@@ -18,15 +19,20 @@ static mx_status_t kpci_enable_bus_master(void* ctx, bool enable) {
 static mx_status_t kpci_get_bti(void* ctx, mx_handle_t* out_handle) {
     kpci_device_t* device = ctx;
 
-    for (size_t i = 0; i < countof(device->props); ++i) {
-        if (device->props[i].id == BIND_PCI_BDF_ADDR) {
-            const uint32_t bdf = device->props[i].id;
-            const mx_handle_t iommu_handle = MX_HANDLE_INVALID;
-            return mx_bti_create(iommu_handle, bdf, out_handle);
-        }
+    const uint32_t bdf = (device->info.bus_id << 8) + (device->info.dev_id << 3) +
+            device->info.func_id;
+    mx_handle_t iommu_handle;
+    mx_iommu_desc_dummy_t dummy;
+    mx_status_t status = mx_iommu_create(get_root_resource(), MX_IOMMU_TYPE_DUMMY, &dummy,
+                                         1, &iommu_handle);
+    if (status != MX_OK) {
+        printf("iommu created failed\n");
+        return status;
     }
-
-    return MX_ERR_NOT_SUPPORTED;
+    status = mx_bti_create(iommu_handle, bdf, out_handle);
+    printf("bti created failed: %d\n", status);
+    mx_handle_close(iommu_handle);
+    return status;
 }
 
 static mx_status_t kpci_enable_pio(void* ctx, bool enable) {
