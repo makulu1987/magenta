@@ -19,32 +19,41 @@ class VmObject;
 
 // core per page structure
 typedef struct vm_page {
+    struct list_node node;
+    // offset 0x10
+
     struct {
         uint32_t flags : 8;
         uint32_t state : 3;
     };
     uint32_t map_count;
+    // offset: 0x18
 
     union {
         struct {
             // in allocated/just freed state, use a linked list to hold the page in a queue
             struct list_node node;
+            // offset: 0x28
         } free;
         struct {
             // attached to a vm object
             uint64_t offset; // unused currently
+            // offset: 0x20
             VmObject* obj; // unused currently
 
-            uint8_t pin_count : VM_PAGE_OBJECT_PIN_COUNT_BITS;
+            // offset: 0x28
+            uint32_t pin_count : VM_PAGE_OBJECT_PIN_COUNT_BITS;
+
+            uint32_t unused;
         } object;
 
-        uint8_t pad[24]; // pad out to 32 bytes
+        uint8_t pad[0x30 - 0x18]; // pad out to 48 bytes
     };
 } vm_page_t;
 
 // pmm will maintain pages of this size
 #define VM_PAGE_STRUCT_SIZE (sizeof(vm_page_t))
-static_assert(sizeof(vm_page_t) == 32, "");
+static_assert(sizeof(vm_page_t) == 48, "");
 
 enum vm_page_state {
     VM_PAGE_STATE_FREE,
